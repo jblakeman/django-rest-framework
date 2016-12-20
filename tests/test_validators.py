@@ -429,3 +429,56 @@ class TestHiddenFieldUniquenessForDateValidation(TestCase):
                     validators = [<UniqueForDateValidator(queryset=HiddenFieldUniqueForDateModel.objects.all(), field='slug', date_field='published')>]
         """)
         assert repr(serializer) == expected
+
+
+class TestCustomFieldValidator(TestCase):
+
+    def setUp(self):
+        self.field_name = 'custom_field'
+        self.initial_value = 'initial'
+        self.append_value = '-changed'
+
+    def _test_serializer_validated_data_equal_changed_data(
+                self,
+                custom_field_validator
+            ):
+        class CustomFieldValidatorSerializer(serializers.Serializer):
+            custom_field = serializers.CharField(
+                max_length=100,
+                validators=[custom_field_validator]
+            )
+
+        data = {self.field_name: self.initial_value}
+        serializer = CustomFieldValidatorSerializer(data=data)
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(
+            serializer.validated_data[self.field_name],
+            data[self.field_name] + self.append_value
+        )
+
+    def test_custom_method_return_value_validated_data(self):
+        """
+        Test that the return value from a field's custom validator
+        method is returned in `validated_data`.
+        """
+        def custom_field_validator(value):
+            return value + self.append_value
+
+        self._test_serializer_validated_data_equal_changed_data(
+            custom_field_validator
+        )
+
+    def test_custom_class_return_value_validated_data(self):
+        """
+        Test that the return value from a field's custom validator class
+        __call__ instance method is returned in `validated_data`.
+        """
+        append_value = self.append_value
+
+        class CustomFieldValidator(object):
+            def __call__(self, value):
+                return value + append_value
+
+        self._test_serializer_validated_data_equal_changed_data(
+            CustomFieldValidator()
+        )
